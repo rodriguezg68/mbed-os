@@ -109,6 +109,14 @@ struct qspi_s {
 #define HAL_CRC_IS_SUPPORTED(polynomial, width) ((width) == 16 || (width) == 32)
 #endif
 
+#ifdef DEVICE_SAI
+struct sai_s {
+    I2S_Type *base;
+    uint32_t channel;
+    bool is_receiver;
+};
+#endif // DEVICE_SAI
+
 #ifdef __cplusplus
 }
 #endif
