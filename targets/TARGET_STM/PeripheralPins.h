@@ -101,4 +101,11 @@ extern const PinMap PinMap_USB_FS[];
 
 #endif /* DEVICE_USBDEVICE */
 
+#ifdef DEVICE_SAI
+extern const PinMap PinMap_SAI_MCLK[];
+extern const PinMap PinMap_SAI_SD[];
+extern const PinMap PinMap_SAI_BCLK[];
+extern const PinMap PinMap_SAI_WCLK[];
+#endif
+
 #endif
