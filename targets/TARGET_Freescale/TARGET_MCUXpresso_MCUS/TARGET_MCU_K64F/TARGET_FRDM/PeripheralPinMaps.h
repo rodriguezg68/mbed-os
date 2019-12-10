@@ -356,6 +356,62 @@ MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_PWM[] = {
     {NC, NC, 0}
 };
 
+/************I2S***************/
+MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_SAI_MCLK[] = {
+    {PTE6 , SAI_0, 4},
+    {PTA17, SAI_0, 6},
+    {PTC6 , SAI_0, 6},
+    {PTC8 , SAI_0, 4},
+
+    {NC   , NC, 0}
+};
+MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_SAI_TXSD[] = {
+    {PTE10, SAI_0, 4},
+    {PTA12, SAI_0, 6},
+    {PTC1 , SAI_0, 6},
+
+    {NC   , NC, 0}
+};
+MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_SAI_TXBCLK[] = {
+    {PTE12, SAI_0, 4},
+    {PTA5 , SAI_0, 6},
+    {PTB18, SAI_0, 4},
+    {PTC3 , SAI_0, 6},
+
+    {NC   , NC, 0}
+};
+MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_SAI_TXWCLK[] = {
+    {PTE11, SAI_0, 4},
+    {PTA13, SAI_0, 6},
+    {PTB19, SAI_0, 4},
+    {PTC2 , SAI_0, 6},
+
+    {NC   , NC, 0}
+};
+MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_SAI_RXSD[] = {
+    {PTE7 , SAI_0, 4},
+    {PTA15, SAI_0, 6},
+    {PTC5 , SAI_0, 4},
+
+    {NC   , NC, 0}
+};
+MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_SAI_RXBCLK[] = {
+    {PTE9 , SAI_0, 4},
+    {PTA14, SAI_0, 6},
+    {PTC6 , SAI_0, 4},
+    {PTC9 , SAI_0, 4},
+
+    {NC   , NC, 0}
+};
+MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_SAI_RXWCLK[] = {
+    {PTE8 , SAI_0, 4},
+    {PTA16, SAI_0, 6},
+    {PTC7 , SAI_0, 4},
+    {PTC10, SAI_0, 4},
+
+    {NC, NC, 0}
+};
+
 #define PINMAP_ANALOGIN PinMap_ADC
 #define PINMAP_ANALOGOUT PinMap_DAC
 #define PINMAP_I2C_SDA PinMap_I2C_SDA
@@ -369,6 +425,13 @@ MSTD_CONSTEXPR_OBJ_11 PinMap PinMap_PWM[] = {
 #define PINMAP_SPI_MISO PinMap_SPI_MISO
 #define PINMAP_SPI_SSEL PinMap_SPI_SSEL
 #define PINMAP_PWM PinMap_PWM
+#define PINMAP_SAI_MCLK PinMap_SAI_MCLK
+#define PINMAP_SAI_TXSD PinMap_SAI_TXSD
+#define PINMAP_SAI_TXBCLK PinMap_SAI_TXBCLK
+#define PINMAP_SAI_TXWCLK PinMap_SAI_TXWCLK
+#define PINMAP_SAI_RXSD PinMap_SAI_RXSD
+#define PINMAP_SAI_RXBCLK PinMap_SAI_RXBCLK
+#define PINMAP_SAI_RXWCLK PinMap_SAI_RXWCLK
 
 
 #endif
