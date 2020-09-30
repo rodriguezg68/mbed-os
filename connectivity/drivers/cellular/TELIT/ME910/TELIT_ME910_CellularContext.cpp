@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 #include "TELIT_ME910_CellularContext.h"
+#include "TELIT_ME310_CellularStack.h"
 #include "CellularLog.h"
 
 #include "Semaphore.h"
@@ -31,6 +32,22 @@ TELIT_ME910_CellularContext::TELIT_ME910_CellularContext(ATHandler &at, Cellular
 TELIT_ME910_CellularContext::~TELIT_ME910_CellularContext()
 {
 }
+
+#if !NSAPI_PPP_AVAILABLE
+NetworkStack *TELIT_ME910_CellularContext::get_stack()
+{
+    if (_pdp_type == NON_IP_PDP_TYPE || (_nonip_req && _pdp_type != DEFAULT_PDP_TYPE)) {
+        tr_error("Requesting stack for NON-IP context! Should request control plane netif: get_cp_netif()");
+        return NULL;
+    }
+
+    if (!_stack) {
+        _stack = new TELIT_ME310_CellularStack(_at, _cid, (nsapi_ip_stack_t)_pdp_type, *get_device());
+    }
+
+    return _stack;
+}
+#endif // #if !NSAPI_PPP_AVAILABLE
 
 bool TELIT_ME910_CellularContext::get_context()
 {
@@ -50,9 +67,9 @@ bool TELIT_ME910_CellularContext::get_context()
             cid_max = cid;
         }
         char pdp_type_from_context[10];
-        int pdp_type_len = _at.read_string(pdp_type_from_context, sizeof(pdp_type_from_context) - 1);
+        int pdp_type_len = _at.read_string(pdp_type_from_context, sizeof(pdp_type_from_context));
         if (pdp_type_len > 0) {
-            apn_len = _at.read_string(apn, sizeof(apn) - 1);
+            apn_len = _at.read_string(apn, sizeof(apn));
             if (apn_len >= 0) {
                 if (_apn && apn_len > 0 && (strcmp(apn, _apn) != 0)) {
                     continue;
@@ -65,8 +82,7 @@ bool TELIT_ME910_CellularContext::get_context()
                 if (get_device()->get_property(pdp_type_t_to_cellular_property(pdp_type)) ||
                         ((pdp_type == IPV4V6_PDP_TYPE && (modem_supports_ipv4 || modem_supports_ipv6)) && !_nonip_req)) {
                     _pdp_type = pdp_type;
-                    _cid = cid;
-                    break;
+                    set_new_context(cid);
                 }
             }
         }
