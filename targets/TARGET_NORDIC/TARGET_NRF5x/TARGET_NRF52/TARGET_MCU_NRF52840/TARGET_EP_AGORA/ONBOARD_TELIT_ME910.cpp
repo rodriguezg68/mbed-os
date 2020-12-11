@@ -103,6 +103,13 @@ nsapi_error_t ONBOARD_TELIT_ME910::init()
     // reservation; otherwise forward them directly to the TE
     _at.at_cmd_discard("+CMER", "=2");
 
+    // AT#PORTCFG=0
+    // Set command allows to connect Service Access Points to the external physical ports giving a great
+    // flexibility. Examples of Service Access Points: AT Parser Instance #1, #2, #3, etc..
+    _at.set_at_timeout(5000);
+    _at.at_cmd_discard("#PORTCFG", "=", "%d", EP_AGORA_PORT_CONFIGURATION_VARIANT);
+    _at.restore_at_timeout();
+
     // AT+CMEE=2
     // Set command disables the use of result code +CME ERROR: <err> as an indication of an
     // error relating to the +Cxxx command issued. When enabled, device related errors cause the +CME
@@ -110,11 +117,6 @@ nsapi_error_t ONBOARD_TELIT_ME910::init()
     // normally when the error message is related to syntax, invalid parameters or DTE functionality.
     // Current setting: enable and use verbose <err> values
     _at.at_cmd_discard("+CMEE", "=2");
-
-    // AT#PORTCFG=0
-    // Set command allows to connect Service Access Points to the external physical ports giving a great
-    // flexibility. Examples of Service Access Points: AT Parser Instance #1, #2, #3, etc..
-    _at.at_cmd_discard("#PORTCFG", "=", "%d", EP_AGORA_PORT_CONFIGURATION_VARIANT);
 
     // AT&W&P
     // - AT&W: Execution command stores on profile <n> the complete configuration of the device. If

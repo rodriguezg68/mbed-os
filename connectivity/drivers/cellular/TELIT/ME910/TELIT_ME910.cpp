@@ -64,7 +64,7 @@ static const intptr_t cellular_properties[AT_CellularDevice::PROPERTY_MAX] = {
     6,  // PROPERTY_SOCKET_COUNT
     1,  // PROPERTY_IP_TCP
     1,  // PROPERTY_IP_UDP
-    20, // PROPERTY_AT_SEND_DELAY
+    100, // PROPERTY_AT_SEND_DELAY
 };
 
 TELIT_ME910::TELIT_ME910(FileHandle *fh, PinName pwr, bool active_high)

@@ -26,10 +26,12 @@
 namespace mbed {
 
 #define ME910_SOCKET_MAX 6
+#define ME910_SECURE_SOCKET_MAX 1
 #define ME910_CONTEXT_MAX 6
 #define ME910_CREATE_SOCKET_TIMEOUT 150000 //150 seconds
 #define ME910_CLOSE_SOCKET_TIMEOUT 20000 // TCP socket max timeout is >10sec
-#define ME910_SEND_SOCKET_TIMEOUT 5000 // TCP socket max timeout is >10sec
+#define ME910_SEND_SOCKET_TIMEOUT 15000 // TCP socket max timeout is >10sec
+// #define ME910_SEND_SOCKET_TIMEOUT 5000 // TCP socket max timeout is >10sec
 #define ME910_MAX_RECV_SIZE 1000
 #define ME910_MAX_SEND_SIZE 1023
 #define ME910_SOCKET_BIND_FAIL 556
@@ -44,6 +46,10 @@ public:
     virtual ~TELIT_ME910_CellularStack();
 
 protected: // NetworkStack
+
+    virtual AT_CellularStack::CellularSocket *find_socket(int index);
+
+    virtual int find_socket_index(nsapi_socket_t handle);
 
     virtual nsapi_error_t socket_listen(nsapi_socket_t handle, int backlog);
 

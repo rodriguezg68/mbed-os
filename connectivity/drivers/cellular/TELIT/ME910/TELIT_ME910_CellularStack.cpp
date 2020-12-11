@@ -42,16 +42,52 @@ TELIT_ME910_CellularStack::TELIT_ME910_CellularStack(ATHandler &atHandler, int c
     // Close all SSL sockets if open. This can happen for example if application processor
     // was reset but modem not. Old sockets are still up and running and it prevents
     // new SSL configurations and creating new sockets.
-    for (int i = 1; i <= ME910_SOCKET_MAX; i++) {
-        _at.clear_error();
-        tr_debug("Closing SSL socket %d...", i);
-        _at.at_cmd_discard("#SSLH", "=", "%d", "0", i);
+    _at.cmd_start_stop("#SSLEN?", "");
+    _at.resp_start("#SSLEN:");
+    _at.skip_param();
+    if (_at.read_int()) {
+        // SSL enabled, so close open secure socket
+        for (int i = 1; i <= ME910_SECURE_SOCKET_MAX; i++) {
+            _at.clear_error();
+            tr_debug("Closing SSL socket %d...", i);
+            _at.at_cmd_discard("#SSLH", "=", "%d", "0", i);
+        }
     }
     _at.clear_error();
 }
 
 TELIT_ME910_CellularStack::~TELIT_ME910_CellularStack()
 {
+}
+
+int TELIT_ME910_CellularStack::find_socket_index(nsapi_socket_t handle)
+{
+    tr_info("TELIT_ME910_CellularStack::find_socket_index()");
+    if (!_socket) {
+        return -1;
+    }
+    for (int i = 1; i < _device.get_property(AT_CellularDevice::PROPERTY_SOCKET_COUNT); i++) {
+        if (_socket[i] == handle) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+AT_CellularStack::CellularSocket *TELIT_ME910_CellularStack::find_socket(int sock_id)
+{
+    tr_info("TELIT_ME910_CellularStack::find_socket()");
+    CellularSocket *sock = NULL;
+    for (int i = 1; i < _device.get_property(AT_CellularDevice::PROPERTY_SOCKET_COUNT); i++) {
+        if (_socket[i] && _socket[i]->id == sock_id) {
+            sock = _socket[i];
+            break;
+        }
+    }
+    if (!sock) {
+        tr_error("Socket not found %d", sock_id);
+    }
+    return sock;
 }
 
 nsapi_error_t TELIT_ME910_CellularStack::socket_listen(nsapi_socket_t handle, int backlog)
@@ -83,7 +119,8 @@ nsapi_error_t TELIT_ME910_CellularStack::socket_connect(nsapi_socket_t handle, c
 
     // Configure SRING URC
     _at.at_cmd_discard("#SCFGEXT", "=", "%d%d%d%d",
-                       request_connect_id + 1,
+                       request_connect_id,
+                    //    request_connect_id + 1,
                        1,   // SRING URC mode - data amount mode
                        0,   // Data view mode - text mode
                        0);  // TCP keepalive - deactivated
@@ -109,7 +146,8 @@ nsapi_error_t TELIT_ME910_CellularStack::socket_connect(nsapi_socket_t handle, c
                 return NSAPI_ERROR_PARAMETER;
             }
         } else {
-            _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d", request_connect_id + 1, 0, address.get_port(), address.get_ip_address(), 0,
+            _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d", request_connect_id, 0, address.get_port(), address.get_ip_address(), 0,
+            // _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d", request_connect_id + 1, 0, address.get_port(), address.get_ip_address(), 0,
                                0, 1);
             if (_at.get_last_error() != NSAPI_ERROR_OK) {
                 // Hit some sort of error opening the socket
@@ -136,7 +174,8 @@ nsapi_error_t TELIT_ME910_CellularStack::socket_connect(nsapi_socket_t handle, c
 void TELIT_ME910_CellularStack::urc_sring()
 {
     _at.lock();
-    const int sock_id = _at.read_int() - 1;
+    const int sock_id = _at.read_int();
+    // const int sock_id = _at.read_int() - 1;
     const int data_bytes_remaining = _at.read_int();
     const nsapi_error_t err = _at.unlock_return_error();
 
@@ -176,7 +215,8 @@ nsapi_error_t TELIT_ME910_CellularStack::socket_close_impl(int sock_id)
             err = _at.at_cmd_discard("#SSLEN", "=,", "%d%d", sslctxID, 0);
         }
     } else {
-        err = _at.at_cmd_discard("#SH", "=", "%d", sock_id + 1);
+        err = _at.at_cmd_discard("#SH", "=", "%d", sock_id);
+        // err = _at.at_cmd_discard("#SH", "=", "%d", sock_id + 1);
     }
     _at.restore_at_timeout();
 
@@ -243,7 +283,8 @@ nsapi_error_t TELIT_ME910_CellularStack::create_socket_impl(CellularSocket *sock
 
     // Configure SRING URC
     _at.at_cmd_discard("#SCFGEXT", "=", "%d%d%d%d",
-                       request_connect_id + 1,
+                       request_connect_id,
+                    //    request_connect_id + 1,
                        1,   // SRING URC mode - data amount mode
                        0,   // Data view mode - text mode
                        0);  // TCP keepalive - deactivated
@@ -252,7 +293,8 @@ nsapi_error_t TELIT_ME910_CellularStack::create_socket_impl(CellularSocket *sock
     }
 
     if (socket->proto == NSAPI_UDP) {
-        _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d", request_connect_id + 1, 1, remote_port,
+        _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d", request_connect_id, 1, remote_port,
+        // _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d", request_connect_id + 1, 1, remote_port,
                            (_ip_ver_sendto == NSAPI_IPv4) ? "127.0.0.1" : "0:0:0:0:0:0:0:1",
                            0, socket->localAddress.get_port(), 1);
 
@@ -262,7 +304,8 @@ nsapi_error_t TELIT_ME910_CellularStack::create_socket_impl(CellularSocket *sock
             return NSAPI_ERROR_PARAMETER;
         }
     } else if (socket->proto == NSAPI_TCP) {
-        _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d%d", request_connect_id + 1, 0, remote_port,
+        _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d%d", request_connect_id, 0, remote_port,
+        // _at.at_cmd_discard("#SD", "=", "%d%d%d%s%d%d%d%d", request_connect_id + 1, 0, remote_port,
                            socket->remoteAddress.get_ip_address(), 0, 0, 1);
 
         if (_at.get_last_error() != NSAPI_ERROR_OK) {
@@ -283,7 +326,7 @@ nsapi_error_t TELIT_ME910_CellularStack::create_socket_impl(CellularSocket *sock
 nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSocket *socket, const SocketAddress &address,
                                                                     const void *data, nsapi_size_t size)
 {
-    tr_debug("TELIT_ME910_CellularStack::socket_sendto_impl()");
+    //tr_debug("TELIT_ME910_CellularStack::socket_sendto_impl()");
 
     int sent_len = 0;
     bool success = true;
@@ -303,7 +346,8 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSock
         } else {
             // Get the sent count before sending
             _at.set_at_timeout(ME910_SEND_SOCKET_TIMEOUT);
-            _at.cmd_start_stop("#SI", "=", "%d", socket->id + 1);
+            _at.cmd_start_stop("#SI", "=", "%d", socket->id);
+            // _at.cmd_start_stop("#SI", "=", "%d", socket->id + 1);
             _at.resp_start("#SI:");
             _at.skip_param();
             sent_len_before = _at.read_int();
@@ -313,13 +357,16 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSock
 
         // Send
         if (socket->proto == NSAPI_UDP) {
-            _at.cmd_start_stop("#SSENDUDPEXT", "=", "%d%d%s%d", socket->id + 1, size,
+            _at.cmd_start_stop("#SSENDUDPEXT", "=", "%d%d%s%d", socket->id, size,
+            // _at.cmd_start_stop("#SSENDUDPEXT", "=", "%d%d%s%d", socket->id + 1, size,
                                address.get_ip_address(), address.get_port());
         } else {
             if (socket->tls_socket) {
-                _at.cmd_start_stop("#SSLSENDEXT", "=", "%d%d", socket->id + 1, size);
+                _at.cmd_start_stop("#SSLSENDEXT", "=", "%d%d", socket->id, size);
+                // _at.cmd_start_stop("#SSLSENDEXT", "=", "%d%d", socket->id + 1, size);
             } else {
-                _at.cmd_start_stop("#SSENDEXT", "=", "%d%d", socket->id + 1, size);
+                _at.cmd_start_stop("#SSENDEXT", "=", "%d%d", socket->id, size);
+                // _at.cmd_start_stop("#SSENDEXT", "=", "%d%d", socket->id + 1, size);
             }
         }
 
@@ -333,7 +380,8 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSock
 
         if (!socket->tls_socket) {
             _at.set_at_timeout(ME910_SEND_SOCKET_TIMEOUT);
-            _at.cmd_start_stop("#SI", "=", "%d", socket->id + 1);
+            _at.cmd_start_stop("#SI", "=", "%d", socket->id);
+            // _at.cmd_start_stop("#SI", "=", "%d", socket->id + 1);
             _at.resp_start("#SI:");
             _at.skip_param();
             sent_len_after = _at.read_int();
@@ -363,7 +411,7 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSock
 nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_recvfrom_impl(CellularSocket *socket, SocketAddress *address,
                                                                       void *buffer, nsapi_size_t size)
 {
-    tr_debug("TELIT_ME910_CellularStack::socket_recvfrom_impl()");
+    // tr_debug("TELIT_ME910_CellularStack::socket_recvfrom_impl()");
 
     nsapi_size_or_error_t nsapi_error_size = NSAPI_ERROR_DEVICE_ERROR;
     bool success = true;
@@ -391,12 +439,15 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_recvfrom_impl(CellularSo
         if (socket->pending_bytes > 0) {
             if (socket->proto == NSAPI_TCP) {
                 if (socket->tls_socket) {
-                    _at.cmd_start_stop("#SSLRECV", "=", "%d%d", socket->id + 1, read_blk);
+                    _at.cmd_start_stop("#SSLRECV", "=", "%d%d", socket->id, read_blk);
+                    // _at.cmd_start_stop("#SSLRECV", "=", "%d%d", socket->id + 1, read_blk);
                 } else {
-                    _at.cmd_start_stop("#SRECV", "=", "%d%d", socket->id + 1, read_blk);
+                    _at.cmd_start_stop("#SRECV", "=", "%d%d", socket->id, read_blk);
+                    // _at.cmd_start_stop("#SRECV", "=", "%d%d", socket->id + 1, read_blk);
                 }
             } else {
-                _at.cmd_start_stop("#SRECV", "=", "%d%d%d", socket->id + 1, read_blk, 1);
+                _at.cmd_start_stop("#SRECV", "=", "%d%d%d", socket->id, read_blk, 1);
+                // _at.cmd_start_stop("#SRECV", "=", "%d%d%d", socket->id + 1, read_blk, 1);
             }
 
             if (socket->tls_socket) {
