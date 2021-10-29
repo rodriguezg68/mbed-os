@@ -440,13 +440,18 @@ void ATHandler::skip_param(uint32_t count)
 
     for (uint32_t i = 0; (i < count && !_stop_tag->found); i++) {
         size_t match_pos = 0;
+        bool inside_paren = false;
         while (true) {
             int c = get_char();
             if (c == -1) {
                 set_error(NSAPI_ERROR_DEVICE_ERROR);
                 return;
-            } else if (c == _delimiter) {
+            } else if ((c == _delimiter) && !inside_paren) {
                 break;
+            } else if (c == '(') {
+                inside_paren = true;
+            } else if ((c == ')') && inside_paren) {
+                inside_paren = false;
             } else if (_stop_tag->len && c == _stop_tag->tag[match_pos]) {
                 match_pos++;
                 if (match_pos == _stop_tag->len) {
@@ -530,13 +535,14 @@ ssize_t ATHandler::read_string(char *buf, size_t size, bool read_even_stop_tag)
     size_t match_pos = 0;
     bool delimiter_found = false;
     bool inside_quotes = false;
+    bool inside_paren = false;
 
     for (; len < (size - 1 + match_pos); len++) {
         int c = get_char();
         if (c == -1) {
             set_error(NSAPI_ERROR_DEVICE_ERROR);
             return -1;
-        } else if (c == _delimiter && !inside_quotes) {
+        } else if ((c == _delimiter) && !inside_quotes && !inside_paren) {
             buf[len] = '\0';
             delimiter_found = true;
             break;
@@ -545,6 +551,10 @@ ssize_t ATHandler::read_string(char *buf, size_t size, bool read_even_stop_tag)
             len--;
             inside_quotes = !inside_quotes;
             continue;
+        } else if (c == '(') {
+            inside_paren = true;
+        } else if ((c == ')') && inside_paren) {
+            inside_paren = false;
         } else if (_stop_tag->len && c == _stop_tag->tag[match_pos]) {
             match_pos++;
             if (match_pos == _stop_tag->len) {

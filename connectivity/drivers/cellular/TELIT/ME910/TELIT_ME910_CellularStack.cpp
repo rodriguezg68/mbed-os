@@ -34,6 +34,7 @@ using namespace std::chrono_literals;
 
 constexpr int sslctxID = 1;
 constexpr auto socket_timeout = 1s;
+uint8_t g_sslsring_en = 0;
 
 
 TELIT_ME910_CellularStack::TELIT_ME910_CellularStack(ATHandler &atHandler, int cid, nsapi_ip_stack_t stack_type, AT_CellularDevice &device) :
@@ -49,6 +50,7 @@ TELIT_ME910_CellularStack::TELIT_ME910_CellularStack(ATHandler &atHandler, int c
 #endif
 
     _at.set_urc_handler("SRING:", mbed::callback(this, &TELIT_ME910_CellularStack::urc_sring));
+    _at.set_urc_handler("SSLSRING:", mbed::callback(this, &TELIT_ME910_CellularStack::urc_sring));
 
     _at.set_send_delay(15);
 
@@ -230,11 +232,11 @@ nsapi_error_t TELIT_ME910_CellularStack::socket_close_impl(int sock_id)
     nsapi_error_t err;
     CellularSocket *socket = find_socket(sock_id);
     if (socket && socket->tls_socket) {
-        err = _at.at_cmd_discard("#SSLH", "=", "%d%d", sock_id, 0);
+        err = _at.at_cmd_discard("#SSLH", "=", "%d%d", sslctxID, 0);
         if (err == NSAPI_ERROR_OK) {
             // Disable TLSSocket settings to prevent reuse on next socket without setting the values
             _tls_sec_level = 0;
-            err = _at.at_cmd_discard("#SSLEN", "=,", "%d%d", sslctxID, 0);
+            err = _at.at_cmd_discard("#SSLEN", "=", "%d%d", sslctxID, 0);
         }
     } else {
         err = _at.at_cmd_discard("#SH", "=", "%d", sock_id + 1);
@@ -352,13 +354,13 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSock
 
         // Send
         if (socket->proto == NSAPI_UDP) {
-            _at.cmd_start_stop("#SSENDUDPEXT", "=", "%d%d%s%d", socket->id + 1, size,
+            _at.cmd_start_stop("#SSENDUDPEXT", "=", "%d%d%s%d", socket->id + 1, blk,
                                address.get_ip_address(), address.get_port());
         } else {
             if (socket->tls_socket) {
-                _at.cmd_start_stop("#SSLSENDEXT", "=", "%d%d", socket->id + 1, size);
+                _at.cmd_start_stop("#SSLSENDEXT", "=", "%d%d", socket->id + 1, blk);
             } else {
-                _at.cmd_start_stop("#SSENDEXT", "=", "%d%d", socket->id + 1, size);
+                _at.cmd_start_stop("#SSENDEXT", "=", "%d%d", socket->id + 1, blk);
             }
         }
 
@@ -414,7 +416,22 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_recvfrom_impl(CellularSo
     char ip_address[NSAPI_IP_SIZE + 1];
 
     if (socket->pending_bytes == 0) {
-        _at.process_oob(); // check for SRING URC
+        if (socket->tls_socket && !g_sslsring_en) {
+            // SSLSRING is not supported, so loop until the data is ready
+            while (socket->pending_bytes == 0) {
+                _at.cmd_start_stop("#SSLI", "=", "%d", 1);
+                _at.resp_start("#SSLI:");
+                _at.skip_param(3); // Skip SSID, Data Sent, and Data Recieve
+                socket->pending_bytes = _at.read_int();
+                _at.resp_stop();
+                /* TODO: need to figure out how to integrate a timeout so we
+                 * don't loop forever (and also not ignore the user timeout
+                 * request) */
+                rtos::ThisThread::sleep_for(1s);
+            }
+        } else {
+            _at.process_oob(); // check for SRING URC
+        }
         if (socket->pending_bytes == 0) {
             tr_debug("Socket %d recv would block", socket->id);
             return NSAPI_ERROR_WOULD_BLOCK;
@@ -460,8 +477,10 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_recvfrom_impl(CellularSo
 
                 _at.read_bytes((uint8_t *)buffer + count, srecv_size);
             } else {
-                // Skip connId
-                _at.skip_param();
+                // Skip connId if it is a TCP socket
+                if (!socket->tls_socket) {
+                    _at.skip_param();
+                }
 
                 srecv_size = _at.read_int();
                 if (srecv_size > size) {
@@ -535,13 +554,47 @@ nsapi_error_t TELIT_ME910_CellularStack::setsockopt(nsapi_socket_t handle, int l
                         if (enabled) {
                             _at.at_cmd_discard("#SSLEN", "=", "%d%d", sslctxID, 1);
                             _at.at_cmd_discard("#SSLSECCFG", "=", "%d%d%d", sslctxID, 0, _tls_sec_level);
+
+                            // Check if the device has support for the SSLSRING
+                            // #SSLCFG:<SSId>,<cid>,<pktSz>,<maxTo>,<defTo>,<txTo>,<skipHostMismatch>,
+                            // <SSLSRingMode>,<noCarrierMode>,<equalizeTx>
+                            _at.cmd_start_stop("#SSLCFG", "=?");
+                            _at.resp_start("#SSLCFG:");
+                            _at.skip_param(7);
+                            char buf[6] = {0};
+                            auto len = _at.read_string(buf, 6);
+                            if ((len > 0) && (len == 3)) {
+                                // SSLSRING only has support for one value;
+                                // check if that value is 1 (not supporting
+                                // chunk format currently)
+                                if (buf[1] == '1') {
+                                    g_sslsring_en = 1;
+                                } else {
+                                    g_sslsring_en = 0;
+                                }
+                            } else if ((len > 0) && (len == 5)) {
+                                // Check if we have the full range otherwise,
+                                // check the individual numbers for 1
+                                if (buf[2] == '-') {
+                                    g_sslsring_en = 1;
+                                } else if (buf[1] == '1' || buf[3] == '1') {
+                                    g_sslsring_en = 1;
+                                } else {
+                                    g_sslsring_en = 0;
+                                }
+                            } else {
+                                g_sslsring_en = 0;
+                            }
+                            _at.resp_stop(); // Finish processing the response
+
                             _at.at_cmd_discard("#SSLCFG", "=", "%d%d%d%d%d%d",
                                                sslctxID,
-                                               _cid,    // PDP context ID
-                                               0,       // Packet size (0 is default, select automatically)
-                                               90,      // Max socket inactivity time (90 is default)
-                                               100,     // Default timeout when no timeout is set (100 is default)
-                                               50);     // Transmit timeout (50 is default)
+                                               _cid,            // PDP context ID
+                                               0,               // Packet size (0 is default, select automatically)
+                                               90,              // Max socket inactivity time (90 is default)
+                                               100,             // Default timeout when no timeout is set (100 is default)
+                                               50,              // Transmit timeout (50 is default)
+                                               g_sslsring_en);  // SSLRING configuration (default 0)
 
                             ret = _at.get_last_error();
                         }
