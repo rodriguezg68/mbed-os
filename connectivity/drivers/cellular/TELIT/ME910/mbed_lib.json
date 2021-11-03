@@ -32,6 +32,10 @@
         "provide-default": {
             "help": "Provide as default CellularDevice [true/false]",
             "value": false
+        },
+        "https-recv-timeout": {
+            "help": "Timeout for HTTPS receive requests if there is no SSLSRING for the device",
+            "value": 4294967295
         }
     }
 }

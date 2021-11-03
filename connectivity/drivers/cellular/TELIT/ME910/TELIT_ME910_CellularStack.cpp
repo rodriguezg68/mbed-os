@@ -418,17 +418,24 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_recvfrom_impl(CellularSo
     if (socket->pending_bytes == 0) {
         if (socket->tls_socket && !g_sslsring_en) {
             // SSLSRING is not supported, so loop until the data is ready
-            while (socket->pending_bytes == 0) {
+            uint32_t timeout = 0;
+            do {
+                uint32_t sleep_time = 1000; // Default to 1s timeout
+                if ((sleep_time + timeout) > MBED_CONF_TELIT_ME910_HTTPS_RECV_TIMEOUT) {
+                    sleep_time = MBED_CONF_TELIT_ME910_HTTPS_RECV_TIMEOUT - timeout;
+                }
                 _at.cmd_start_stop("#SSLI", "=", "%d", 1);
                 _at.resp_start("#SSLI:");
                 _at.skip_param(3); // Skip SSID, Data Sent, and Data Recieve
                 socket->pending_bytes = _at.read_int();
                 _at.resp_stop();
-                /* TODO: need to figure out how to integrate a timeout so we
-                 * don't loop forever (and also not ignore the user timeout
-                 * request) */
-                rtos::ThisThread::sleep_for(1s);
-            }
+                rtos::ThisThread::sleep_for(std::chrono::milliseconds(sleep_time));
+                timeout += sleep_time;
+                if (!sleep_time) {
+                    break;
+                }
+            } while ((socket->pending_bytes == 0) &&
+                    (timeout <= MBED_CONF_TELIT_ME910_HTTPS_RECV_TIMEOUT));
         } else {
             _at.process_oob(); // check for SRING URC
         }
