@@ -594,13 +594,14 @@ nsapi_error_t TELIT_ME910_CellularStack::setsockopt(nsapi_socket_t handle, int l
                             }
                             _at.resp_stop(); // Finish processing the response
 
-                            _at.at_cmd_discard("#SSLCFG", "=", "%d%d%d%d%d%d",
+                            _at.at_cmd_discard("#SSLCFG", "=", "%d%d%d%d%d%d%d%d",
                                                sslctxID,
                                                _cid,            // PDP context ID
                                                0,               // Packet size (0 is default, select automatically)
                                                90,              // Max socket inactivity time (90 is default)
                                                100,             // Default timeout when no timeout is set (100 is default)
                                                50,              // Transmit timeout (50 is default)
+                                               1,               // Ignore Host Mismatch alert (default 1)
                                                g_sslsring_en);  // SSLRING configuration (default 0)
 
                             ret = _at.get_last_error();
