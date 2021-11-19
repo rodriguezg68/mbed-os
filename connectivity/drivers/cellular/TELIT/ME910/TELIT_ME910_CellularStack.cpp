@@ -117,7 +117,6 @@ nsapi_error_t TELIT_ME910_CellularStack::socket_connect(nsapi_socket_t handle, c
         // Hit some sort of error opening the socket
         if(err != NSAPI_ERROR_OK) {
             socket->id = -1;
-            _at.unlock();
             return NSAPI_ERROR_PARAMETER;
         }
     }
@@ -140,7 +139,9 @@ nsapi_error_t TELIT_ME910_CellularStack::socket_connect(nsapi_socket_t handle, c
                        0,   // Data view mode - text mode
                        0);  // TCP keepalive - deactivated
     if (_at.get_last_error() != NSAPI_ERROR_OK) {
-        tr_warn("Unable to configure socket %d", request_connect_id);
+        tr_error("Unable to configure socket %d", request_connect_id);
+        _at.unlock();
+        return NSAPI_ERROR_DEVICE_ERROR;
     }
 
     if (socket->proto == NSAPI_TCP) {
