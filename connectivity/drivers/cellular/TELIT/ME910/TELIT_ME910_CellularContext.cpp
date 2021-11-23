@@ -83,6 +83,9 @@ bool TELIT_ME910_CellularContext::get_context()
                         ((pdp_type == IPV4V6_PDP_TYPE && (modem_supports_ipv4 || modem_supports_ipv6)) && !_nonip_req)) {
                     _pdp_type = pdp_type;
                     _cid = cid;
+                    if (_stack) {
+                        static_cast<AT_CellularStack *>(_stack)->set_cid(_cid);
+                    }
                     break;
                 }
             }
