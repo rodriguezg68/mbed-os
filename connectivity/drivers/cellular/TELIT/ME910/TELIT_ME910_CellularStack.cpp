@@ -334,8 +334,11 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSock
     nsapi_size_t count = size;
     int sent_len_before = 0;
     int sent_len_after = 0;
+    Timer timer;
 
+    timer.start();
     while ((count > 0) && success) {
+
         if (count < blk) {
             blk = count;
         }
@@ -373,6 +376,11 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSock
         _at.resp_start("\r\nOK", true);
         _at.resp_stop();
 
+        if (_at.get_last_error() != NSAPI_ERROR_OK) {
+            success = false;
+            break;
+        }
+
         if (!socket->tls_socket) {
             _at.set_at_timeout(ME910_SEND_SOCKET_TIMEOUT);
             _at.cmd_start_stop("#SI", "=", "%d", socket->id + 1);
@@ -391,9 +399,14 @@ nsapi_size_or_error_t TELIT_ME910_CellularStack::socket_sendto_impl(CellularSock
             success = false;
         }
 
+        if (timer.elapsed_time() > (socket_timeout * 5)) {
+            success = false;
+        }
+
         buf += blk;
         count -= blk;
     }
+    timer.stop();
 
     if (success && _at.get_last_error() == NSAPI_ERROR_OK) {
         return size - count;
